@@ -1,5 +1,7 @@
 from flask import Flask, render_template, url_for, redirect, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///data_points.db"
@@ -23,6 +25,20 @@ with app.app_context():
     db.create_all()
 
 
+def predict_category_by_features(feature_1, feature_2):
+    data_points = db.session.scalars(db.select(DataPoint)).all()
+    x = [[data_point.feature_1, data_point.feature_2] for data_point in data_points]
+    y = [data_point.category for data_point in data_points]
+
+    scaler = StandardScaler()
+    standardized_x = scaler.fit_transform(x)
+    standardized_features = scaler.transform([[feature_1, feature_2]])
+
+    neigh = KNeighborsClassifier(n_neighbors=3)
+    neigh.fit(standardized_x, y)
+    return neigh.predict(standardized_features)[0]
+
+
 @app.route('/')
 def home():
     data_points = db.session.scalars(db.select(DataPoint))
@@ -38,7 +54,8 @@ def add():
             category = int(request.form['category'])
 
         except ValueError:
-            return render_template("add_record_error.html"), 400
+            return render_template("error.html", error_code='400 Bad Request',
+                                   error_message='The form failed validation.'), 400
 
         db.session.add(DataPoint(feature_1=feature_1, feature_2=feature_2, category=category))
         db.session.commit()
@@ -52,12 +69,31 @@ def add():
 def delete(record_id):
     data_point = db.session.scalar(db.select(DataPoint).where(DataPoint.id == record_id))
     if data_point is None:
-        return render_template("delete_record_error.html", record_id=record_id), 404
+        return render_template("error.html", error_code='404 Not Found',
+                               error_message=f'Record with ID {record_id} is not present in the database.'), 404
 
     else:
         db.session.delete(data_point)
         db.session.commit()
         return redirect(url_for('home'))
+
+
+@app.route('/predict', methods=['GET', 'POST'])
+def predict():
+    if request.method == 'POST':
+        try:
+            feature_1 = float(request.form['feature_1'])
+            feature_2 = float(request.form['feature_2'])
+
+        except ValueError:
+            return render_template("error.html", error_code='400 Bad Request',
+                                   error_message='The form failed validation.'), 400
+
+        predicted_category = predict_category_by_features(feature_1, feature_2)
+        return render_template("predicted_category.html", predicted_category=predicted_category)
+
+    else:
+        return render_template("predict_category.html")
 
 
 @app.route('/api/data', methods=['GET', 'POST'])
@@ -93,6 +129,19 @@ def api_delete(record_id):
         db.session.delete(data_point)
         db.session.commit()
         return jsonify({'id': data_point.id})
+
+
+@app.route('/api/predictions')
+def api_predictions():
+    try:
+        feature_1 = float(request.args['feature_1'])
+        feature_2 = float(request.args['feature_2'])
+
+    except (KeyError, ValueError):
+        return jsonify({'error': 'Invalid data'}), 400
+
+    predicted_category = predict_category_by_features(feature_1, feature_2)
+    return jsonify({'category': int(predicted_category)})
 
 
 if __name__ == '__main__':

@@ -5,6 +5,11 @@
     <title>Data points</title>
 </head>
 <body>
+<nav>
+    <a href="{{ url_for('home') }}">Home</a>
+    <a href="{{ url_for('add') }}">Add Record</a>
+    <a href="{{ url_for('predict') }}">Predict category by features</a>
+</nav>
 {% block content %}{% endblock %}
 </body>
 </html>
