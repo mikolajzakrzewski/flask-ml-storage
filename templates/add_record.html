@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+    <nav>
+        <a href="{{ url_for('home') }}">Home</a>
+    </nav>
+    <form method="post">
+        <label for="feature_1">Feature 1:</label>
+        <input type="text" id="feature_1" name="feature_1">
+        <label for="feature_2">Feature 2:</label>
+        <input type="text" id="feature_2" name="feature_2">
+        <label for="category">Category:</label>
+        <input type="text" id="category" name="category">
+        <button type="submit">Add</button>
+    </form>
+{% endblock %}
