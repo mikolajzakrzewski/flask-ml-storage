@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Data points</title>
+</head>
+<body>
+<nav>
+    <a href="{{ url_for('website.home') }}">Home</a>
+    <a href="{{ url_for('website.add') }}">Add Record</a>
+    <a href="{{ url_for('website.predict') }}">Predict category by features</a>
+</nav>
+{% block content %}{% endblock %}
+</body>
+</html>

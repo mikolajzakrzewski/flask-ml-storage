@@ -14,7 +14,7 @@
                 <td>{{ data_point.feature_2 }}</td>
                 <td>{{ data_point.category }}</td>
                 <td>
-                    <form method="post" action="{{ url_for('delete', record_id=data_point.id) }}">
+                    <form method="post" action="{{ url_for('website.delete', record_id=data_point.id) }}">
                         <button type="submit">Delete</button>
                     </form>
                 </td>

@@ -1,55 +1,19 @@
-from flask import Flask, render_template, url_for, redirect, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import KNeighborsClassifier
+from flask import Blueprint, render_template, url_for, redirect, request, jsonify
+from app.db import db
+from app.models import DataPoint
+from app.utils import predict_category_by_features
 
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///data_points.db"
-db = SQLAlchemy(app)
-
-
-class DataPoint(db.Model):
-    id = db.mapped_column(db.Integer, primary_key=True)
-    feature_1 = db.mapped_column(db.Float, nullable=False)
-    feature_2 = db.mapped_column(db.Float, nullable=False)
-    category = db.mapped_column(db.Integer, nullable=False)
-
-    def to_dict(self):
-        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
-
-    def __repr__(self):
-        return f"DataPoint({self.id}, {self.feature_1}, {self.feature_2}, {self.category})"
+website_bp = Blueprint('website', __name__)
+api_bp = Blueprint('api', __name__)
 
 
-with app.app_context():
-    db.create_all()
-
-
-def predict_category_by_features(feature_1, feature_2):
-    n_neighbors = 3
-    data_points = db.session.scalars(db.select(DataPoint)).all()
-    if len(data_points) < n_neighbors:
-        return None
-
-    x = [[data_point.feature_1, data_point.feature_2] for data_point in data_points]
-    y = [data_point.category for data_point in data_points]
-
-    scaler = StandardScaler()
-    standardized_x = scaler.fit_transform(x)
-    standardized_features = scaler.transform([[feature_1, feature_2]])
-
-    neigh = KNeighborsClassifier(n_neighbors=n_neighbors)
-    neigh.fit(standardized_x, y)
-    return neigh.predict(standardized_features)[0]
-
-
-@app.route('/')
+@website_bp.route('/')
 def home():
     data_points = db.session.scalars(db.select(DataPoint))
     return render_template("home.html", data_points=data_points)
 
 
-@app.route('/add', methods=['GET', 'POST'])
+@website_bp.route('/add', methods=['GET', 'POST'])
 def add():
     if request.method == 'POST':
         try:
@@ -63,13 +27,13 @@ def add():
 
         db.session.add(DataPoint(feature_1=feature_1, feature_2=feature_2, category=category))
         db.session.commit()
-        return redirect(url_for('home'))
+        return redirect(url_for('website.home'))
 
     else:
         return render_template("add_record.html")
 
 
-@app.route('/delete/<int:record_id>', methods=['POST'])
+@website_bp.route('/delete/<int:record_id>', methods=['POST'])
 def delete(record_id):
     data_point = db.session.scalar(db.select(DataPoint).where(DataPoint.id == record_id))
     if data_point is None:
@@ -79,10 +43,10 @@ def delete(record_id):
     else:
         db.session.delete(data_point)
         db.session.commit()
-        return redirect(url_for('home'))
+        return redirect(url_for('website.home'))
 
 
-@app.route('/predict', methods=['GET', 'POST'])
+@website_bp.route('/predict', methods=['GET', 'POST'])
 def predict():
     if request.method == 'POST':
         try:
@@ -104,7 +68,7 @@ def predict():
         return render_template("predict_category.html")
 
 
-@app.route('/api/data', methods=['GET', 'POST'])
+@api_bp.route('/api/data', methods=['GET', 'POST'])
 def api_data():
     if request.method == 'GET':
         data_points = db.session.scalars(db.select(DataPoint))
@@ -127,7 +91,7 @@ def api_data():
         return jsonify({'id': data_point.id}), 201
 
 
-@app.route('/api/data/<int:record_id>', methods=['DELETE'])
+@api_bp.route('/api/data/<int:record_id>', methods=['DELETE'])
 def api_delete(record_id):
     data_point = db.session.scalar(db.select(DataPoint).where(DataPoint.id == record_id))
     if data_point is None:
@@ -139,7 +103,7 @@ def api_delete(record_id):
         return jsonify({'id': data_point.id})
 
 
-@app.route('/api/predictions')
+@api_bp.route('/api/predictions')
 def api_predictions():
     try:
         feature_1 = float(request.args['feature_1'])
@@ -153,7 +117,3 @@ def api_predictions():
         return jsonify({'error': 'Not enough records in the database to make a prediction.'}), 409
 
     return jsonify({'category': int(predicted_category)})
-
-
-if __name__ == '__main__':
-    app.run()
