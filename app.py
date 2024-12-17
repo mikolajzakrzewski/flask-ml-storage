@@ -26,7 +26,11 @@ with app.app_context():
 
 
 def predict_category_by_features(feature_1, feature_2):
+    n_neighbors = 3
     data_points = db.session.scalars(db.select(DataPoint)).all()
+    if len(data_points) < n_neighbors:
+        return None
+
     x = [[data_point.feature_1, data_point.feature_2] for data_point in data_points]
     y = [data_point.category for data_point in data_points]
 
@@ -34,7 +38,7 @@ def predict_category_by_features(feature_1, feature_2):
     standardized_x = scaler.fit_transform(x)
     standardized_features = scaler.transform([[feature_1, feature_2]])
 
-    neigh = KNeighborsClassifier(n_neighbors=3)
+    neigh = KNeighborsClassifier(n_neighbors=n_neighbors)
     neigh.fit(standardized_x, y)
     return neigh.predict(standardized_features)[0]
 
@@ -90,6 +94,10 @@ def predict():
                                    error_message='The form failed validation.'), 400
 
         predicted_category = predict_category_by_features(feature_1, feature_2)
+        if predicted_category is None:
+            return render_template("error.html", error_code='409 Conflict',
+                                   error_message='Not enough records in the database to make a prediction.'), 409
+
         return render_template("predicted_category.html", predicted_category=predicted_category)
 
     else:
@@ -141,6 +149,9 @@ def api_predictions():
         return jsonify({'error': 'Invalid data'}), 400
 
     predicted_category = predict_category_by_features(feature_1, feature_2)
+    if predicted_category is None:
+        return jsonify({'error': 'Not enough records in the database to make a prediction.'}), 409
+
     return jsonify({'category': int(predicted_category)})
 
 
